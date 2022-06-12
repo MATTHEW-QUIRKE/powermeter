@@ -1,3 +1,4 @@
+
 /************************************/
 /***    Arduino Wattmeter v1.0    ***/
 /***    Board: Arduino Nano 3.0   ***/
@@ -65,7 +66,7 @@ long secSquaredVoltArr[secAvLength]; // Squared Voltage secondary averageing arr
 long secMeanCurrArr[secAvLength];    // Mean Current secondary averageing array
 long secSquaredCurrArr[secAvLength]; // Squared Current secondary averageing array
 long secMeanPowArr[secAvLength];     // Real Power secondary averageing array
-long secMeanVolt = 0;                // Result secondary averaging mean voltage 
+long secMeanVolt = 0;                // Result secondary averaging mean voltage
 long secSquaredVolt = 0;             // Result secondary averaging squared voltage
 long secMeanCurr = 0;                // Result secondary averaging mean current
 long secSquaredCurr = 0;             // Result secondary averaging squared current
@@ -74,19 +75,25 @@ long secMeanPow = 0;                 // Result secondary averaging mean power
 byte tFlux[8];                       // 64 bits integrated ADC voltage
 byte tCharge[8];                     // 64 bits integrated ADC current
 byte tEnergy[8];                     // 64 bits integrated ADC power
+
+
 unsigned int preTimeCnt = 0;         // Time prescaler
 unsigned long timeCnt = 0;           // Time seconds counter
 /***  ***/
 float totAverage = 10.0;             // Total averaging length (primary * secondary)
 float fSample = 10.0;                 // ADC channel sample frequency
-const byte LCDlinePos[4] = {0x80,0xC0,0x94,0xD4}; // First char position for each line (as DDRAM instruction)
+
+const byte LCDlinePos[2] = {0x80,0xC0}; // First char position for each line (as DDRAM instruction)
+/**const byte LCDlinePos[4] = {0x80,0xC0,0x94,0xD4}; // First char position for each line (as DDRAM instruction)**/
 byte lineSelect = 0;                 // The selected dsplay line
-byte paramPointers[4] = {0,7,13,18}; // Parameter pointer for each display line
-char* paramLabels[] = {"Vmean ","Vrms  ","Vsdev ","Vmax  ","Vmin  ","Flux  ","f (V)","Imean ","Irms  ","Isdev ","Imax  ","Imin  ","Charge","f (I) ","Preal ","S *   ","Q *   ","Pmax  ","Pmin  ","Energy","\x01  *  ","time  "};
-char* paramUnits[] = {"V","V","V","V","V","Vs","Hz","A","A","A","A","A","C","Hz","W","VA","var","W","W","J","\x02","s"};
-float paramValues[] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
-int paramRange[] = {0,0,0,0,0,99,99,0,0,0,0,0,99,99,99,0,0,0,0,99,99,100};  // 99=autorange, 100=int-number
-int paramDigits[] = {4,4,4,3,3,5,4,4,4,4,3,3,5,4,4,4,4,3,3,5,3,7};         // number of digits
+byte paramPointers[2] = {0,1}; // Parameter pointer for each display line
+/** changed to two lines **/
+/** byte paramPointers[4] = {0,7,13,18}; // Parameter pointer for each display line **/
+char* paramLabels[] = {"Vmean ","Vrms  ","Vsdev ","Vmax  ","Vmin  ","Flux  ","f (V)","Imean ","Irms  ","Isdev ","Imax  ","Imin  ","Charge","f (I) ","Preal ","S *   ","Q *   ","Pmax  ","Pmin  ","Energy","\x01  *  ","time  ","Wh   ","Ah   "};
+char* paramUnits[] = {"V","V","V","V","V","Vs","Hz","A","A","A","A","A","C","Hz","W","VA","var","W","W","J","\x02","s","Wh","Ah"};
+float paramValues[] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
+int paramRange[] = {0,0,0,0,0,99,99,0,0,0,0,0,99,99,99,0,0,0,0,99,99,100,99,99};  // 99=autorange, 100=int-number
+int paramDigits[] = {4,4,4,3,3,5,4,4,4,4,3,3,5,4,4,4,4,3,3,5,3,7,6,6};         // number of digits
 byte antiBounceCnt = 0;              // Buttons anti bounce counter
 boolean buttonState = false;         // Button is pressed
 unsigned int buttonPushed = 0;       // Pressed buttons
@@ -102,19 +109,14 @@ void setup() {
   lcdInitiate();                       // initiate LCD
   lcdCustomChars();                    // Make custom characters
   lcdWrite(true, LCDlinePos[0]);       // LCD cursor first line position 0
-  lcdPrintString("Universal power");
+  lcdPrintString("Battery power");
   lcdWrite(true, LCDlinePos[1]);       // LCD cursor second line position 0
   lcdPrintString("meter v1.0");
+  Serial.begin(9600); // open the serial port at 9600 bps:
   for(int md=0; md<100; md++) {        // Wait 2 seconds
     muDelay(20000);
   }
-  lcdWrite(true, LCDlinePos[0]);       // LCD cursor first line position 0
-  lcdPrintString("meettechniek    ");
-  lcdWrite(true, LCDlinePos[1]);       // LCD cursor second line position 0
-  lcdPrintString("           .info");
-  for(int md=0; md<100; md++) {        // Wait 2 seconds
-    muDelay(20000);
-  }
+
   setProperties();                     // Set properties and Clear measured values
   updateParamLabels();                 // Write Parameter labels to LCD
   updateParamValues();                 // Write parameter values to LCD
@@ -137,8 +139,8 @@ void loop() {
     secMeanCurr += primMeanCurrCopy;
     secMeanCurrArr[secArrCnt] = primMeanCurrCopy;
     /*** Secondary avearaging Mean Squared Current ***/
-    secSquaredCurr -= secSquaredCurrArr[secArrCnt];       // squared current 
-    secSquaredCurr += primSquaredCurrCopy;        
+    secSquaredCurr -= secSquaredCurrArr[secArrCnt];       // squared current
+    secSquaredCurr += primSquaredCurrCopy;
     secSquaredCurrArr[secArrCnt] = primSquaredCurrCopy;
     /*** Secondary avearaging Mean Power ***/
     secMeanPow -= secMeanPowArr[secArrCnt];               // and power
@@ -179,10 +181,14 @@ void loop() {
     /*** Flux, Charge, Energy ***/
     paramValues[5] = extraLongToFloat(tFlux) * Vscale / fSample;                // Flux
     paramValues[12] = extraLongToFloat(tCharge) * Cscale / fSample;             // Charge
-    paramValues[19] = extraLongToFloat(tEnergy) * Vscale * Cscale / fSample;    // Energy
+    paramValues[19] = (extraLongToFloat(tEnergy) * Vscale * Cscale / fSample);    // Energy
     /*** Phase & Time ***/
     paramValues[20] = acos(paramValues[14]/paramValues[15]);                   // Phase = acos(P/S)
     paramValues[21] = (float) round(timeCnt);                                  // Time
+
+    paramValues[22] = (extraLongToFloat(tEnergy) * Vscale * Cscale / fSample) / 3600;    // Wh
+    paramValues[23] = (extraLongToFloat(tCharge) * Cscale / fSample) / 3600;    // Ah
+
     /*** Voltage Frequency ***/
     if(vfmPeriodsTime > 10000 && vfmPeriods > 3) {
       vfmUpperTh = 2000;                                                       // Prevent asynchronious reading
@@ -203,7 +209,7 @@ void loop() {
     }
     cfmUpperTh = int((paramValues[7] + (paramValues[9] / 2)) / Cscale);        // Upper current threshold
     cfmLowerTh = int((paramValues[7] - (paramValues[9] / 2)) / Cscale);        // Lower current threshold
-    
+
     /*** Update LCD values ***/
     updateParamValues();    // Write values to LCD
 
@@ -219,7 +225,7 @@ void loop() {
   }
   /*** Button Nulling values ***/
   if (buttonPushed == 0x10) {        // If "clear values" button is pressed ...
-    if (~PINB & 0x02) {              // ... and "line select" button ... 
+    if (~PINB & 0x02) {              // ... and "line select" button ...
       buttonPushed = 0;
       setProperties();               // ... set parametes to zero.
     }
@@ -294,10 +300,10 @@ void setProperties() {
   avArrClear(secAvLength, secSquaredVoltArr);
   avArrClear(secAvLength, secMeanCurrArr);
   avArrClear(secAvLength, secSquaredCurrArr);
-  avArrClear(secAvLength, secMeanPowArr); 
+  avArrClear(secAvLength, secMeanPowArr);
   secArrCnt = 0;                                   // Clear secondary array counter
   secMeanVolt = 0;                                 // Clear secondary averaging values ...
-  secSquaredVolt = 0; 
+  secSquaredVolt = 0;
   secMeanCurr = 0;
   secSquaredCurr = 0;
   secMeanPow = 0;
@@ -316,7 +322,8 @@ void setProperties() {
 
 /*** Select the next or previous parameter ***/
 void changeParamPointer(boolean dir) {
-  int paramMax = 21;                      // Number of parameters
+  /** changed number of parameters MQ **/
+  int paramMax = 23;                      // Number of parameters
   if(dir == true) {
     paramPointers[lineSelect]++;          // Increase parameter pointer for the selected line
     if(paramPointers[lineSelect] > paramMax) {
@@ -325,7 +332,7 @@ void changeParamPointer(boolean dir) {
   else {
     if(paramPointers[lineSelect] == 0) {  // Decrease parameter pointer for the selected line
       paramPointers[lineSelect] = paramMax + 1; }
-   paramPointers[lineSelect]--; 
+   paramPointers[lineSelect]--;
   }
 }
 
@@ -334,13 +341,15 @@ void updateParamLabels() {
   for (int ci=0; ci<LCDlines; ci++) {
     lcdWrite(true, LCDlinePos[ci]);
     lcdPrintString(paramLabels[paramPointers[ci]]);
+
   }
 }
 
 /*** Write parameter value on each line ***/
 void updateParamValues() {
-  for (int ci=0; ci<LCDlines; ci++) {    
+  for (int ci=0; ci<LCDlines; ci++) {
     lcdParamValues(paramPointers[ci], LCDlinePos[ci] + LCDwidth);
+
   }
 }
 
@@ -376,7 +385,7 @@ float extraLongToFloat(byte* elVal) {
   }
   long tVal;
   long loVal = 0;
-  for(int shi=24; shi>=0; shi-=8) {      // Shift values for each byte 
+  for(int shi=24; shi>=0; shi-=8) {      // Shift values for each byte
     tVal = long(elVal[fi--]);            // Take first relevant byte
     loVal += tVal << shi;                // and shift it into te long
   }
@@ -533,7 +542,7 @@ ISR(ADC_vect) {
       primMeanPow = 0;
       primReady = true;                          // The primary averaging values are availeble for the secondary averaging.
     }
-    vCnt++;    // value count +1                 // Increase value counter 
+    vCnt++;    // value count +1                 // Increase value counter
  /*** Button debouncing ***/
     byte buttons = ~PINB & 0x1E;                 // Read the four buttons
     if(buttons == 0) {                           // If no button is pressed ...
@@ -595,12 +604,14 @@ void lcdPrintString(const char* strArr) {
   /*** Write a text string to the LCD ***/
   for(byte ci=0; ci<strlen(strArr); ci++) {
     lcdWrite(false, strArr[ci]);
+
   }
 }
 
 void lcdWrite(boolean reg, byte val) {
   /*** write byte to LCD in nibble mode ***/
   /*** reg: false = data, true = command ***/
+
   lcdCheckBusyFlag();
   byte loni = val << 4;    // prepare LS nibble
   byte hini = val & 0xF0;  // prepare MS nibble
@@ -624,7 +635,7 @@ void lcdWrite(boolean reg, byte val) {
 }
 
 void lcdCheckBusyFlag() {
-  /*** check until LCD is ready ***/ 
+  /*** check until LCD is ready ***/
   byte dVal;
   DDRD = DDRD & 0x0F;           // PD4...7 = input
   bitSet(PORTD, 3);             // R/W = 1
@@ -684,7 +695,7 @@ void lcdTechNot(float fval, long lval, int rangeExp, int digits, const char* uni
   char vvArr[] = {'f','p','n',0xE4,'m',' ','k','M','G','T','P'};  // prefix array
   int expo;                                 // Exponent
   if (rangeExp == 99) {                     // If auto range ...
-    expo = floor(log10(fabs(fval)));        // ... use the value exponent ... 
+    expo = floor(log10(fabs(fval)));        // ... use the value exponent ...
   }
   else {
     expo = rangeExp - 1;                    // ... else use a fixed exponent as range
@@ -698,7 +709,7 @@ void lcdTechNot(float fval, long lval, int rangeExp, int digits, const char* uni
     decpoint = digits - ((expo+15) % 3);    // Calc. decimal point position
   }
   else {                                    // If the long int value is used ...
-    expo = 0;                               // ... prevent using a prefix. 
+    expo = 0;                               // ... prevent using a prefix.
   }
   if(lval < 0) {                            // If the value is negative ...
     lval = abs(lval);                       // ... make the value absolute ...
@@ -750,10 +761,11 @@ void lcdTechNot(float fval, long lval, int rangeExp, int digits, const char* uni
   }
   lcdWrite(true, pos);                   // Position cursor LCD
   for(byte iw=0; iw<(totChar-strPnt); iw++) { // For every unoccupied preceding character ...
-    lcdWrite(false, 0x20);               // ... send white spaces to LCD to erase old text 
+    lcdWrite(false, 0x20);               // ... send white spaces to LCD to erase old text
   }
   for(ci=0; ci<strPnt; ci++) {           // For every character ...
     lcdWrite(false, valStr[ci]);         // ... send character to LCD
+
   }
 }
 
